@@ -1,0 +1,246 @@
+import random
+import tkinter as tk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
+import pygame
+import os
+
+pygame.init()
+
+bus_sound = pygame.mixer.Sound("siren.mp3")
+
+def calculate_manhattan_distance(x1, y1, x2, y2):
+    return abs(x2 - x1) + abs(y1 - y2)
+
+def create_grid(rows, cols, path_coords):
+    for i in range(rows):
+        for j in range(cols):
+            coord = (i, j)
+            if coord in path_coords:
+                if current_step >= path_coords.index(coord):
+                    cell_bg = "grey"
+                else:
+                    cell_bg = "white"
+            elif coord == fire_station:
+                cell_bg = "white"
+            elif coord == house:
+                cell_bg = "white"
+            elif coord in additional_img_mapping:
+                cell_bg = "white"
+            else:
+                cell_bg = "white"
+            canvas.itemconfigure(cells[coord], fill=cell_bg)
+
+def generate_path_coords(fire_station, house, obstacles):
+    from queue import Queue
+
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    path_coords = []
+    visited = set()
+    queue = Queue()
+    queue.put((fire_station, []))
+    visited.add(fire_station)
+
+    while not queue.empty():
+        current, path = queue.get()
+
+        if current == house:
+            return path
+
+        for direction in directions:
+            next_step = (current[0] + direction[0], current[1] + direction[1])
+            if 0 <= next_step[0] < rows and 0 <= next_step[1] < cols and next_step not in visited and next_step not in obstacles:
+                visited.add(next_step)
+                queue.put((next_step, path + [next_step]))
+
+    return []
+
+def show_home_page():
+    home_frame.pack(fill="both", expand=True)
+    grid_frame.pack_forget()
+    instructions_frame.pack_forget()
+
+def show_grid_page():
+    home_frame.pack_forget()
+    grid_frame.pack(fill="both", expand=True)
+    move_bus()
+
+def show_instructions_page():
+    home_frame.pack_forget()
+    instructions_frame.pack(fill="both", expand=True)
+
+def start_loading():
+    progress["value"] = 0
+    home_frame.after(100, update_progress_bar)
+
+def update_progress_bar():
+    if progress["value"] < 100:
+        progress["value"] += 10
+        home_frame.after(500, update_progress_bar)
+    else:
+        show_grid_page()
+
+def exit_app():
+    window.destroy()
+
+def restart_app():
+    global current_step, house, path_coords, bus_id, house_id, bus_position
+    current_step = 0
+    house = (random.randint(0, rows - 1), random.randint(0, cols - 1))
+    while house == fire_station or house in additional_img_mapping:
+        house = (random.randint(0, rows - 1), random.randint(0, cols - 1))
+    path_coords = generate_path_coords(fire_station, house, set(additional_img_mapping.keys()))
+    create_grid(rows, cols, path_coords)
+    canvas.coords(bus_id, fire_station[1] * 75 + 15, fire_station[0] * 75 + 15)
+    canvas.coords(house_id, house[1] * 75, house[0] * 75)
+    canvas.itemconfig(house_id, image=house_img)  
+    canvas.itemconfig(bus_id, state="normal") 
+    bus_position = fire_station 
+    show_grid_page()
+
+def move_bus():
+    global current_step, bus_position
+    if current_step < len(path_coords):
+        bus_position = path_coords[current_step]
+        x, y = bus_position
+        canvas.coords(bus_id, y * 75 + 15, x * 75 + 15)
+        create_grid(rows, cols, path_coords)
+        bus_sound.play()
+        current_step += 1
+        if bus_position == house:
+            canvas.itemconfig(house_id, image=after_fire_img)
+            canvas.itemconfig(bus_id, state="hidden")
+            show_safe_message()
+        else:
+            window.after(500, move_bus)
+
+def show_safe_message():
+    messagebox.showinfo("Rescue Complete", "The people are safe now!")
+    
+window = tk.Tk()
+window.title("Grid in GUI")
+
+rows = 10
+cols = 15
+
+fire_station = (0, 0)
+
+house = (random.randint(0, rows - 1), random.randint(0, cols - 1))
+while house == fire_station:
+    house = (random.randint(0, rows - 1), random.randint(0, cols - 1))
+
+path_coords = generate_path_coords(fire_station, house, set())
+shortest_distance_steps = len(path_coords)
+print(f"Fire Station coordinates: {fire_station}")
+print(f"House coordinates: {house}")
+print(f"The shortest distance from the fire station to the house is: {shortest_distance_steps} steps")
+
+current_step = 0
+bus_position = fire_station
+
+home_frame = tk.Frame(window)
+home_frame.pack(fill="both", expand=True)
+
+home_bg_img = ImageTk.PhotoImage(Image.open("bg1.jpg").resize((cols * 100, rows * 100)))
+home_bg_label = tk.Label(home_frame, image=home_bg_img)
+home_bg_label.place(relwidth=1, relheight=1)
+
+home_label = tk.Label(home_frame, text="Fire Rescue Simulation", font=("Arial", 90), bg=None)
+home_label.pack(pady=50, anchor="n")
+
+start_button = tk.Button(home_frame, text="Start", command=start_loading, font=("Arial", 25))
+start_button.place(relx=0.5, rely=0.5, anchor="center")
+
+instructions_button = tk.Button(home_frame, text="Instructions", command=show_instructions_page, font=("Arial", 25))
+instructions_button.place(relx=0.5, rely=0.6, anchor="center")
+
+progress = ttk.Progressbar(home_frame, orient=tk.HORIZONTAL, length=300, mode='determinate')
+progress.place(relx=0.5, rely=0.7, anchor="center")
+
+grid_frame = tk.Frame(window)
+
+canvas = tk.Canvas(grid_frame, width=cols * 75, height=rows * 75)
+canvas.pack()
+
+cells = {}
+additional_img_mapping = {}
+
+additional_img_paths = ["additional_image1.png","additional_image2.png","additional_image3.png","additional_image4.png","additional_image5.png","additional_image6.png","additional_image7.png","additional_image8.png","additional_image9.png","additional_image10.png","additional_image11.png","additional_image12.png","additional_image13.png","additional_image14.png","additional_image15.png"]
+
+for path in additional_img_paths:
+    if not os.path.exists(path):
+        print(f"Error: The file {path} does not exist.")
+        raise FileNotFoundError(f"File not found: {path}")
+
+additional_imgs = [ImageTk.PhotoImage(Image.open(path).resize((75, 75))) for path in additional_img_paths]
+
+for i, path in enumerate(additional_img_paths):
+    attempts = 0
+    max_attempts = 100
+    while attempts < max_attempts:
+        coord = (random.randint(0, rows - 1), random.randint(0, cols - 1))
+        if coord not in additional_img_mapping and coord != house and coord not in path_coords:
+            additional_img_mapping[coord] = additional_imgs[i]
+            break
+        attempts += 1
+    if attempts == max_attempts:
+        print(f"Warning: Could not place image {path} after {max_attempts} attempts.")
+
+for i in range(rows):
+    for j in range(cols):
+        coord = (i, j)
+        x0, y0 = j * 75, i * 75
+        x1, y1 = x0 + 75, y0 + 75
+        cell_bg = "white"
+        if coord in path_coords:
+            if current_step >= path_coords.index(coord):
+                cell_bg = "red"
+        elif coord == fire_station:
+            cell_bg = "white"
+        elif coord == house:
+            cell_bg = "white"
+        elif coord in additional_img_mapping:
+            cell_bg = "white"
+        else:
+            cell_bg = "white"
+        cell_id = canvas.create_rectangle(x0, y0, x1, y1, fill=cell_bg)
+        cells[coord] = cell_id
+
+fire_station_img = ImageTk.PhotoImage(Image.open("fire_station.png").resize((75, 75)))
+house_img = ImageTk.PhotoImage(Image.open("house1.png").resize((75, 75)))
+bus_img = ImageTk.PhotoImage(Image.open("bus.jpg").resize((50, 50)))
+after_fire_img = ImageTk.PhotoImage(Image.open("after_fire.jpg").resize((75, 75)))
+
+fire_station_id = canvas.create_image(fire_station[1] * 75, fire_station[0] * 75, anchor="nw", image=fire_station_img)
+house_id = canvas.create_image(house[1] * 75, house[0] * 75, anchor="nw", image=house_img)
+bus_id = canvas.create_image(fire_station[1] * 75 + 15, fire_station[0] * 75 + 15, anchor="nw", image=bus_img)
+
+for coord, img in additional_img_mapping.items():
+    x, y = coord
+    canvas.create_image(y * 75, x * 75, anchor="nw", image=img)
+
+exit_button = tk.Button(grid_frame, text="Exit", command=exit_app, font=("Arial", 25))
+exit_button.pack(side="left", padx=20, pady=10)
+
+restart_button = tk.Button(grid_frame, text="Restart", command=restart_app, font=("Arial", 25))
+restart_button.pack(side="right", padx=20, pady=10)
+
+instructions_frame = tk.Frame(window)
+
+instructions_label = tk.Label(instructions_frame, text="Instructions", font=("Arial", 50))
+instructions_label.pack(pady=50)
+
+instructions_text = tk.Label(instructions_frame, text="1. Click 'Start' to begin the simulation.\n"
+                                                       "2. The fire truck will follow the shortest path to the house.\n"
+                                                       "3. The house will change once the fire truck reaches it.\n"
+                                                       "4. You can restart the simulation by clicking 'Restart'.\n"
+                                                       "5. Exit the application using the 'Exit' button.",
+                             font=("Arial", 25))
+instructions_text.pack(pady=20)
+
+back_button = tk.Button(instructions_frame, text="Back", command=show_home_page, font=("Arial", 25))
+back_button.pack(pady=20)
+
+show_home_page()
+
+window.mainloop()
